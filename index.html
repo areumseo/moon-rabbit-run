@@ -77,6 +77,11 @@
     background: var(--moon); color: var(--night-deep);
   }
   button.ghost { background: transparent; color: var(--moon); }
+  /* 좁은 화면에선 캔버스가 낮아서 결과창을 캔버스 아래로 펼친다 */
+  @media (max-width: 640px) {
+    #over { position: static; background: var(--night-deep); border-top: 1px solid var(--line); padding: 16px 12px 18px; }
+    #over button { font-size: 15px; padding: 8px 16px; }
+  }
   button:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
 
   .how { display: flex; flex-direction: column; gap: 12px; color: var(--muted); font-size: 14px; }
@@ -136,6 +141,7 @@
       <p class="wish" id="overWish"></p>
       <div class="btns">
         <button id="retry" type="button" data-i18n="retry">다시 달리기</button>
+        <button id="card" type="button" class="ghost" data-i18n="card">📸 카드 저장</button>
         <button id="copy" type="button" class="ghost" data-i18n="copy">기록 복사</button>
       </div>
     </div>
@@ -166,7 +172,7 @@
 (() => {
   const W = 800, H = 280, GROUND = 232;
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  let ctx = canvas.getContext('2d'); // 기록 카드를 그릴 때 잠시 바꿔 끼운다
   const $ = id => document.getElementById(id);
 
   // HiDPI
@@ -186,6 +192,7 @@
       start: '고향을 향해 출발!',
       retry: '다시 달리기',
       copy: '기록 복사', copied: '복사됨!', copyFail: '복사 실패 — 직접 캡처해 주세요',
+      card: '📸 카드 저장', cardScore: '점수', cardRecord: '신기록!', cardSongs: n => `송편 ${n}개 챙김`, cardHit: '나를 쓰러뜨린 잔소리',
       jump: '또는 화면 탭으로 점프', hold: '길게 누르면 더 높이 점프!', tip: '길게 누르면 더 높이 점프!',
       song: '송편', songDesc: '+10점',
       env: '용돈 봉투', envDesc: '잠깐 무적',
@@ -230,6 +237,7 @@
       start: 'Head home!',
       retry: 'Run again',
       copy: 'Copy score', copied: 'Copied!', copyFail: "Couldn't copy — take a screenshot instead",
+      card: '📸 Save card', cardScore: 'Score', cardRecord: 'New record!', cardSongs: n => `${n} songpyeon grabbed`, cardHit: 'Knocked out by',
       jump: 'or tap to jump', hold: 'Hold for a higher jump!', tip: 'Hold to jump higher!',
       song: 'Songpyeon', songDesc: '+10 pts',
       env: 'Cash envelope', envDesc: 'brief invincibility',
@@ -295,7 +303,7 @@
   const nearHills = hills(4.1, 26, GROUND);
 
   let state, rabbit, obstacles, songs, items, pops, speed, dist, songCount, nextObs, nextSong, nextItem, invincible, t, holding, result, flash, tip;
-  let runs = 0;
+  let runs = 0, cardBlob = null;
 
   const INVINCIBLE_SEC = 4.5;
 
@@ -354,6 +362,22 @@
     try { await navigator.clipboard.writeText(txt); btn.textContent = L().copied; }
     catch { btn.textContent = L().copyFail; }
     setTimeout(() => (btn.textContent = L().copy), 1800);
+  });
+  // 휴대폰은 공유 시트(사진 저장·앱 공유), PC는 PNG 다운로드
+  $('card').addEventListener('click', async () => {
+    track(`save-card-${lang}`);
+    const blob = await cardBlob;
+    if (!blob) return;
+    const name = `moon-rabbit-run-${result.score}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
 
   // ---------- Spawning
@@ -486,6 +510,8 @@
     q.textContent = L().nags[result.nag];
     hit.replaceChildren(L().hitBefore, q, L().hitAfter(result.score, result.songs));
     $('overWish').textContent = L().wishes[result.wish];
+    // 공유 시트는 클릭 직후에만 열리므로 카드 이미지를 미리 만들어 둔다
+    cardBlob = new Promise(res => drawCard().toBlob(res, 'image/png'));
   }
 
   // ---------- Language
@@ -716,6 +742,90 @@
       ctx.fillText(flash.text, W / 2, 60);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // ---------- 기록 카드 (1080×1080 정사각형, 게임 그리기 함수를 확대해서 재사용)
+  function drawCard() {
+    const S = 1080, FLOOR = 900;
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const main = ctx, savedRabbit = rabbit, savedState = state;
+    ctx = c.getContext('2d');
+    const at = (x, y, k, draw) => { ctx.save(); ctx.translate(x, y); ctx.scale(k, k); draw(); ctx.restore(); };
+    const fit = (text, size, maxW) => {
+      for (; size > 20; size -= 2) { ctx.font = `${size}px Jua, sans-serif`; if (ctx.measureText(text).width <= maxW) break; }
+    };
+    try {
+      const g = ctx.createLinearGradient(0, 0, 0, S);
+      g.addColorStop(0, '#10143a'); g.addColorStop(1, '#262d63');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+      ctx.fillStyle = '#fff6d8';
+      for (const s of stars) {
+        ctx.globalAlpha = 0.3 + s.r * 0.35;
+        ctx.beginPath(); ctx.arc(s.x / W * S, s.y / GROUND * 760, s.r * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      const mx = 870, my = 210, mr = 120;
+      const halo = ctx.createRadialGradient(mx, my, mr * 0.8, mx, my, mr * 2.4);
+      halo.addColorStop(0, 'rgba(247,232,180,0.35)'); halo.addColorStop(1, 'rgba(247,232,180,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(mx, my, mr * 2.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f7e8b4'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(201,185,131,0.5)';
+      [[-14, -10, 9], [12, 8, 7], [-4, 18, 5], [18, -16, 4]].forEach(([dx, dy, r]) => {
+        const k = mr / 44; ctx.beginPath(); ctx.arc(mx + dx * k, my + dy * k, r * k, 0, Math.PI * 2); ctx.fill();
+      });
+
+      for (const [pts, color] of [[farHills, '#1b2150'], [nearHills, '#243056']]) {
+        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, S);
+        for (const [x, y] of pts) ctx.lineTo(x * 1.4, FLOOR + (y - GROUND) * 2.4);
+        ctx.lineTo(S, S); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#12162f'; ctx.fillRect(0, FLOOR, S, S - FLOOR);
+      ctx.strokeStyle = 'rgba(247,232,180,0.55)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(S, FLOOR); ctx.stroke();
+
+      // 제목과 점수
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#c9b983'; ctx.font = '32px "Gowun Dodum", sans-serif';
+      ctx.fillText(L().eyebrow, 80, 120);
+      ctx.fillStyle = '#f7e8b4'; fit(L().title, 88, 620);
+      ctx.fillText(L().title, 80, 215);
+
+      ctx.fillStyle = '#9ea5d6'; ctx.font = '40px Jua, sans-serif';
+      ctx.fillText(L().cardScore, 80, 340);
+      if (result.record) {
+        const lx = 80 + ctx.measureText(L().cardScore).width + 20;
+        ctx.font = '30px Jua, sans-serif';
+        const pw = ctx.measureText(L().cardRecord).width + 40;
+        ctx.fillStyle = '#e0554a'; roundRect(lx, 300, pw, 50, 25); ctx.fill();
+        ctx.fillStyle = '#fbf7ee'; ctx.fillText(L().cardRecord, lx + 20, 336);
+      }
+      ctx.fillStyle = '#f7e8b4'; ctx.font = '200px Jua, sans-serif';
+      ctx.fillText(String(result.score), 72, 530);
+      ctx.fillStyle = '#eef0ff'; ctx.font = '40px Jua, sans-serif';
+      ctx.fillText(L().cardSongs(result.songs), 80, 605);
+
+      // 달토끼와 쓰러뜨린 잔소리
+      rabbit = { x: 0, y: GROUND, vy: 0, w: 36, h: 40, onGround: true };
+      state = result.record ? 'ready' : 'over';
+      at(200, FLOOR - GROUND * 4.5, 4.5, drawRabbit);
+      const o = { x: 0, w: nagWidth(result.nag), h: 34, ni: result.nag, wob: 0 };
+      at(420, FLOOR - GROUND * 3, 3, () => drawObstacle(o));
+      ctx.fillStyle = '#9ea5d6'; ctx.font = '30px Jua, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(L().cardHit, 424, 775);
+      at(360, 690, 2.6, () => drawSong({ x: 0, y: 0, c: '#f2b8c6', spin: 0 }));
+      at(990, 700, 2.6, () => drawSong({ x: 0, y: 0, c: '#b9dea9', spin: 0.4 }));
+
+      // 덕담과 주소
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#eef0ff'; ctx.font = '32px "Gowun Dodum", sans-serif';
+      ctx.fillText(L().wishes[result.wish], S / 2, 975, S - 120);
+      ctx.fillStyle = '#c9b983'; ctx.font = '30px Jua, sans-serif';
+      ctx.fillText('areumseo.com/moon-rabbit-run', S / 2, 1035);
+    } finally {
+      ctx = main; rabbit = savedRabbit; state = savedState;
+    }
+    return c;
   }
 
   function render() {
