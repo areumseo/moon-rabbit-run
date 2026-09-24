@@ -277,10 +277,23 @@
   if (!T[lang]) lang = 'ko';
   const L = () => T[lang];
 
-  // GoatCounter 이벤트. 스크립트가 아직 안 떴거나 막혀 있으면 조용히 넘어간다
-  function track(name) {
-    try { window.goatcounter?.count?.({ path: name, title: name, event: true }); } catch {}
+  // GoatCounter 이벤트. 스크립트는 async라 첫 시작 클릭보다 늦게 뜰 수 있어서
+  // 준비될 때까지 모아 뒀다가 보낸다. 차단된 경우 30초 뒤 포기
+  const gcQueue = [];
+  let gcTries = 0, gcWaiting = false;
+  function flushTrack() {
+    gcWaiting = false;
+    const count = window.goatcounter?.count;
+    if (!count) {
+      if (gcQueue.length && gcTries++ < 30) { gcWaiting = true; setTimeout(flushTrack, 1000); }
+      return;
+    }
+    while (gcQueue.length) {
+      const name = gcQueue.shift();
+      try { count({ path: name, title: name, event: true }); } catch {}
+    }
   }
+  function track(name) { gcQueue.push(name); if (!gcWaiting) flushTrack(); }
   const pick = arr => Math.floor(Math.random() * arr.length);
 
   const store = {
