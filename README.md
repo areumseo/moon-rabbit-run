@@ -11,7 +11,7 @@ Chuseok is Korea’s harvest holiday. Think Thanksgiving, with rice cakes and re
 - **Jump**: press `Space` or `↑`, or tap the screen
 - **Jump higher**: hold the key or keep your finger down
 - **Songpyeon**: +10 points each
-- 🧧 **Money envelope**: invincible for a few seconds, and nagging just bounces off
+- 🧧 **Cash envelope**: invincible for a few seconds, and nagging just bounces off
 - 🎧 **Headphones**: mutes every nag on screen
 
 The game speeds up as you go. When you’re knocked out, you can copy a one-line result to share.
