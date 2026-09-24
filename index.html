@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>달토끼 귀성길</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -266,6 +268,11 @@
   let lang = prefs.get() || ((navigator.language || '').toLowerCase().startsWith('ko') ? 'ko' : 'en');
   if (!T[lang]) lang = 'ko';
   const L = () => T[lang];
+
+  // GoatCounter 이벤트. 스크립트가 아직 안 떴거나 막혀 있으면 조용히 넘어간다
+  function track(name) {
+    try { window.goatcounter?.count?.({ path: name, title: name, event: true }); } catch {}
+  }
   const pick = arr => Math.floor(Math.random() * arr.length);
 
   const store = {
@@ -308,6 +315,7 @@
     if (state !== 'ready') return;
     $('intro').hidden = true;
     state = 'playing';
+    track(`start-${lang}`);
     press();
   }
 
@@ -335,13 +343,14 @@
   window.addEventListener('pointercancel', release);
 
   let overShownAt = 0;
-  function restart() { $('over').hidden = true; reset(); state = 'playing'; }
+  function restart() { $('over').hidden = true; reset(); state = 'playing'; track(`retry-${lang}`); }
 
   $('start').addEventListener('click', startGame);
   $('retry').addEventListener('click', restart);
   $('copy').addEventListener('click', async () => {
     const txt = L().share(result.score, result.songs, L().nags[result.nag]);
     const btn = $('copy');
+    track(`copy-score-${lang}`);
     try { await navigator.clipboard.writeText(txt); btn.textContent = L().copied; }
     catch { btn.textContent = L().copyFail; }
     setTimeout(() => (btn.textContent = L().copy), 1800);
@@ -491,7 +500,7 @@
     for (const o of obstacles) o.w = nagWidth(o.ni);
     renderResult();
   }
-  for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => applyLang(b.dataset.lang));
+  for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => { applyLang(b.dataset.lang); track(`lang-${lang}`); });
   applyLang(lang);
 
   // ---------- Drawing
@@ -732,3 +741,5 @@
   requestAnimationFrame(loop);
 })();
 </script>
+<script data-goatcounter="https://moonrabbitrun.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.js"></script>
