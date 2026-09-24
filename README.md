@@ -2,7 +2,7 @@
 
 A tiny Chuseok runner game in the spirit of the Chrome dino. Help the moon rabbit get home for the holiday by jumping over the nagging relatives always bring up, like “Married yet?” or “How much do you make?”, and grab songpyeon along the way.
 
-**▶ Play: https://areumseo.github.io/moon-rabbit-run/**
+**▶ Play: https://areumseo.com/moon-rabbit-run/**
 
 Chuseok is Korea’s harvest holiday. Think Thanksgiving, with rice cakes and relatives asking way too many questions.
 
